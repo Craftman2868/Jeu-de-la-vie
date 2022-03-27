@@ -8,7 +8,7 @@
 #include "../log.hpp"
 #include "render.hpp"
 
-#define GENERATION_TIME 250  // ms
+#define GENERATION_TIME 150  // ms
 #define FRAME_PAR_GENERATION 2  // no more than 3; no float; no 0; no negative number; (1, 2 or 3)
 #define WIDTH 50
 #define HEIGHT 50
@@ -21,6 +21,8 @@ class Game {
         int generation;
         bool running;
         bool paused;
+        bool pen_mode;
+        bool erase_mode;
         int selected_x, selected_y;
         int selector1_x, selector1_y;
         int selector2_x, selector2_y;
@@ -32,6 +34,8 @@ class Game {
             this->generation = 0;
             this->running = false;
             this->paused = false;
+            this->pen_mode = false;
+            this->erase_mode = false;
             this->selected_x = WIDTH / 2;
             this->selected_y = HEIGHT / 2;
             this->selector1_x = -1;
@@ -90,6 +94,8 @@ class Game {
                     usleep(GENERATION_TIME * 1000 / FRAME_PAR_GENERATION);
                 }
             }
+
+            std::cout << "\033[2J\033[HQuitting... (if taking too long time press <ctrl> + <c>)" << std::endl;
         }
 
         void interpretInput(char ch) {
@@ -101,6 +107,10 @@ class Game {
             // space
             } else if (ch == ' ') {
                 this->paused = !this->paused;
+
+                this->pen_mode = false;
+                this->erase_mode = false;
+
                 this->setMessage(this->paused ? "Game paused" : "Game resumed");
             
             // ESC
@@ -111,12 +121,32 @@ class Game {
                         ch = getCharNonBlock();
                         if (ch == 'A' && this->selected_y > 0) {
                             this->selected_y--;
+                            if (this->pen_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(true);
+                            } else if (this->erase_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(false);
+                            }
                         } else if (ch == 'B' && this->selected_y < HEIGHT - 1) {
                             this->selected_y++;
+                            if (this->pen_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(true);
+                            } else if (this->erase_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(false);
+                            }
                         } else if (ch == 'C' && this->selected_x < WIDTH - 1) {
                             this->selected_x++;
+                            if (this->pen_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(true);
+                            } else if (this->erase_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(false);
+                            }
                         } else if (ch == 'D' && this->selected_x > 0) {
                             this->selected_x--;
+                            if (this->pen_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(true);
+                            } else if (this->erase_mode) {
+                                this->back_cases[this->selected_y][this->selected_x].setValue(false);
+                            }
                         } else {
                             return;
                         }
@@ -214,6 +244,34 @@ class Game {
 
                 this->setMessage("Selector 2 unset");
             
+            // ctrl + a
+            } else if (ch == 0x01 && this->paused) {
+                this->selector1_x = 0;
+                this->selector1_y = 0;
+
+                this->selector2_x = WIDTH - 1;
+                this->selector2_y = HEIGHT - 1;
+
+                this->setMessage("Game selected");
+
+            // p
+            } else if (this->paused && ch == 'p') {
+                this->pen_mode = !this->pen_mode;
+                this->erase_mode = false;
+
+                this->back_cases[this->selected_y][this->selected_x].setValue(true);
+
+                this->setMessage(this->pen_mode ? "Pen mode enabled" : "Pen mode disabled");
+            
+            // P
+            } else if (this->paused && ch == 'P') {
+                this->erase_mode = !this->erase_mode;
+                this->pen_mode = false;
+
+                this->back_cases[this->selected_y][this->selected_x].setValue(false);
+
+                this->setMessage(this->erase_mode ? "Erase mode enabled" : "Erase mode disabled");
+
             // other
             } else {
                 logDebug("Unrecognized key: " + std::to_string((int) ch));
@@ -611,28 +669,42 @@ class Game {
 
             std::cout << "\033[2J\033[1;1H";
 
-            std::cout << std::endl;
-            std::cout << "     ====================================" << std::endl;
-            std::cout << "     =============[   \033[1mHelp\033[0m   ]===========" << std::endl;
-            std::cout << "     ====================================" << std::endl;
+            std::cout                                                                            << std::endl;
+            std::cout << "     ===================================="                             << std::endl;
+            std::cout << "     =============[   \033[1mHelp\033[0m   ]==========="               << std::endl;
+            std::cout << "     ===================================="                             << std::endl;
+            std::cout                                                                            << std::endl;
+            std::cout << "                 \033[3mGame of life\033[0m"                           << std::endl;
+            std::cout                                                                            << std::endl;
             std::cout << "     \033[2m<ctrl>\033[0m + \033[2m<c>\033[0m  force quit"             << std::endl;
-            std::cout << "              \033[2m<q>\033[0m  quit"                   << std::endl;
-            std::cout << "          \033[2m<space>\033[0m  pause"                  << std::endl;
-            std::cout << "             \033[2m<up>\033[0m  move selector up"       << std::endl;
-            std::cout << "           \033[2m<down>\033[0m  move selector down"     << std::endl;
-            std::cout << "           \033[2m<left>\033[0m  move selector left"     << std::endl;
-            std::cout << "          \033[2m<right>\033[0m  move selector right"    << std::endl;   
-            std::cout << "          \033[2m<enter>\033[0m  change case value"      << std::endl;
-            std::cout << "              \033[2m<c>\033[0m  clear"                  << std::endl;
-            std::cout << "              \033[2m<r>\033[0m  reset"                  << std::endl;
-            std::cout << "              \033[2m<n>\033[0m  next"                   << std::endl;
-            std::cout << "              \033[2m<F>\033[0m  fill game"              << std::endl;
-            std::cout << "              \033[2m<f>\033[0m  fill selected region"   << std::endl;
+            std::cout << "              \033[2m<q>\033[0m  quit"                                 << std::endl;
+            std::cout << "          \033[2m<space>\033[0m  pause / resume"                       << std::endl;
+            std::cout << "             \033[2m<up>\033[0m  move cursor up"                       << std::endl;
+            std::cout << "           \033[2m<down>\033[0m  move cursor down"                     << std::endl;
+            std::cout << "           \033[2m<left>\033[0m  move cursor left"                     << std::endl;
+            std::cout << "          \033[2m<right>\033[0m  move cursor right"                    << std::endl;   
+            std::cout << "          \033[2m<enter>\033[0m  change case value"                    << std::endl;
+            std::cout << "              \033[2m<c>\033[0m  clear game"                           << std::endl;
+            std::cout << "              \033[2m<r>\033[0m  reset game"                           << std::endl;
+            std::cout << "              \033[2m<n>\033[0m  next generation"                      << std::endl;
+            std::cout << "              \033[2m<F>\033[0m  fill game"                            << std::endl;
+            std::cout << "              \033[2m<f>\033[0m  fill selected region"                 << std::endl;
             std::cout << "     \033[2m<ctrl>\033[0m + \033[2m<f>\033[0m  unfill selected region" << std::endl;
-            std::cout << "       \033[2m<h>\033[0m or \033[2m<?>\033[0m  help"                    << std::endl;
-            std::cout << "     ====================================" << std::endl;
-            std::cout << std::endl;
-            std::cout << "      Press any key to return to game..."  << std::endl;
+            std::cout << "       \033[2m<h>\033[0m or \033[2m<?>\033[0m  help"                   << std::endl;
+            std::cout << "              \033[2m<s>\033[0m  set 1st selector pos"                 << std::endl;
+            std::cout << "              \033[2m<S>\033[0m  set 2st selector pos"                 << std::endl;
+            std::cout << "              \033[2m<u>\033[0m  unset 1st selector"                   << std::endl;
+            std::cout << "              \033[2m<U>\033[0m  unset 2st selector"                   << std::endl;
+            std::cout << "      \033[2m<alt> + <u>\033[0m  unset selected zone"                  << std::endl;
+            std::cout << "      \033[2m<alt> + <f>\033[0m  fill selected zone"                   << std::endl;
+            std::cout << "      \033[2m<alt> + <c>\033[0m  clear selected zone"                  << std::endl;
+            std::cout << "      \033[2m<alt> + <t>\033[0m  toggle selected zone"                 << std::endl;
+            std::cout << "              \033[2m<p>\033[0m  pen mode"                             << std::endl;
+            std::cout << "              \033[2m<P>\033[0m  erase mode"                           << std::endl;
+            std::cout                                                                            << std::endl;
+            std::cout << "     ===================================="                             << std::endl;
+            std::cout                                                                            << std::endl;
+            std::cout << "      Press any key to return to game..."                              << std::endl;
 
             while (!getCharNonBlock());
         }
